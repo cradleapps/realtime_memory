@@ -14,7 +14,12 @@ target_include_directories(realtime_memory INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_compile_features(realtime_memory INTERFACE cxx_std_17)
 
+#------------------------------------------------------------------
+# Tests
+#------------------------------------------------------------------
 if (REALTIME_MEMORY_TESTS)
   message(STATUS "realtime_memory adding tests...")
+  enable_testing()
   add_subdirectory(tests "${CMAKE_BINARY_DIR}/tests")
+  add_test(realtime_memory tests/realtime_memory_tests)
 endif()

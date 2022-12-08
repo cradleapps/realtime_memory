@@ -1,0 +1,20 @@
+# Run unit tests using CTest
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  run-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generate CMake
+        run: mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+      - name: Build project
+        run: cd build && cmake --build .
+      - name: Run tests
+        run: cd build && ctest .
