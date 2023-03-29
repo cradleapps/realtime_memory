@@ -3,6 +3,11 @@
 //==============================================================================
 #pragma once
 #include "pmr_includes.h"
+#include <limits>
+#include <cstddef>
+#include <new>
+#include <utility>
+#include <memory>
 
 //==============================================================================
 namespace cradle::pmr

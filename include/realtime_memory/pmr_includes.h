@@ -3,7 +3,7 @@
 #include <cassert>
 #include <vector>
 
-#if defined(__clang__)
+#if defined(__clang__) || defined(__GNUC__)
  #include <experimental/memory_resource>
  namespace std_pmr = std::experimental::pmr;
 #else
