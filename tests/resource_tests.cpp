@@ -400,6 +400,40 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         res.deallocate (ptr1, 3, 1);
         res.deallocate (ptr2, bytes, align);
     }
+
+    SECTION ("Re-merges split blocks that have been returned (defragmentation)")
+    {
+        std::vector<std::byte> buf (512, std::byte(0));
+        std::vector<void*> ptrs;
+
+        cradle::pmr::free_list_resource res (buf.data(), buf.size());
+
+        const std::size_t alignment = 1;
+        const std::size_t smallBlockSize = 2;
+        const std::size_t largeBlockSize = 200;
+
+        // Allocate small blocks that split up the free list.
+        // We don't know the exact capacity of the resource due
+        // to its internal bookkeeping, so we keep going until it throws.
+        try
+        {
+            while (true)
+                ptrs.push_back (res.allocate (smallBlockSize, alignment));
+        }
+        catch (const std::bad_alloc&)
+        {}
+
+        // Return all the blocks except one in the middle
+        for (std::size_t i = 0; i < ptrs.size(); ++i)
+            if (i != ptrs.size() / 2)
+                res.deallocate (ptrs[i], smallBlockSize, alignment);
+
+        // Check that the two areas either side of the still-active pointer
+        // can be re-merged in a defragmentation step.
+        CHECK (res.allocate (largeBlockSize, alignment));
+        CHECK (res.allocate (largeBlockSize, alignment));
+        CHECK_THROWS_AS (res.allocate (largeBlockSize, alignment), std::bad_alloc);
+    }
 }
 
 //==============================================================================

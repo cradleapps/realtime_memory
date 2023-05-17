@@ -8,12 +8,12 @@
  *  Important notes:
  *    - This resource is single-threaded
  *    - This resource does not support over-alignment.
- *    - This resource can become fragmented, as blocks are
- *      not re-coalesced once they have been split up.
+ *
  *  If we need these, we may add them, but for now YAGNI.
  *
  *  It's a first-fit free-list algorithm, which is relatively
  *  slow. Thus it's best used for large but rare allocations.
+ *
  *  A good technique is to use it as the upstream resource for
  *  an unsynchronized_pool_resource. Small allocations will be
  *  served by the pool (which is fast) while oversize
@@ -66,7 +66,11 @@ private:
             if (free->size >= size)
                 return assign_block (*free, prev, size);
 
-        throw std::bad_alloc(); // too fragmented
+        // Too fragmented: we have enough space but no blocks are large enough.
+        if (auto defragmented_block = defragment (size))
+            return defragmented_block;
+
+        throw std::bad_alloc(); // still too fragmented, abort
     }
 
     void do_deallocate (void* ptr, std::size_t, std::size_t) override
@@ -112,6 +116,87 @@ private:
             first_free = next_in_list;
         else if (previous_in_list != nullptr)
             previous_in_list->next = next_in_list;
+    }
+
+    // Merges contiguous free blocks, and returns the block that's
+    // closest in size to the the desired block size.
+    void* defragment (std::size_t desired_block_size)
+    {
+        if (first_free == nullptr || first_free->next == nullptr)
+            return nullptr;
+
+        // First we sort the free list so that it's ordered by pointer position (lowest first)
+        while (true)
+        {
+            bool anySwapped = false;
+
+            for (mem_block* p0 = first_free->next, *p1 = first_free, *p2 = nullptr; p0 != nullptr && p1 != nullptr;)
+            {
+                if (reinterpret_cast<std::size_t> (p0) < reinterpret_cast<std::size_t> (p1))
+                {
+                    if (p2 == nullptr)
+                        first_free = p0;
+                    else
+                        p2->next = p0;
+
+                    p1->next = p0->next;
+                    p0->next = p1;
+                    std::swap (p0, p1);
+                    anySwapped = true;
+                }
+
+                p2 = p1;
+                p1 = p0;
+                p0 = p0->next;
+            }
+
+            if (! anySwapped)
+                break;
+        }
+
+        // Now we iterate the free blocks, merging the next block along if it's also free.
+        // While we do this, we look for a block that is suitable for use by the caller.
+        std::size_t closest_size_diff = std::numeric_limits<std::size_t>::max();
+        mem_block* closest_sized_block = nullptr;
+        mem_block* closest_sized_block_prev = nullptr;
+
+        for (mem_block* free = first_free, *prev = nullptr; free != nullptr && free->next != nullptr;)
+        {
+            auto next = free->next;
+            const auto thisStart = free->data();
+            const auto thisEnd = thisStart + free->size;
+            const auto nextHeader = reinterpret_cast<std::byte*> (next);
+
+            if (nextHeader - thisEnd <= std::ptrdiff_t (max_align_bytes))
+            {
+                const auto nextEnd = next->data() + next->size;
+
+                free->size = std::size_t (nextEnd - thisStart);
+                free->next = next->next;
+            }
+            else
+            {
+                if (free->size >= desired_block_size)
+                {
+                    const auto diff = free->size - desired_block_size;
+
+                    if (diff < closest_size_diff)
+                    {
+                        closest_size_diff = diff;
+                        closest_sized_block = free;
+                        closest_sized_block_prev = prev;
+                    }
+                }
+
+                prev = free;
+                free = free->next;
+            }
+        }
+
+        if (closest_sized_block == nullptr)
+            return nullptr;
+
+        return assign_block (*closest_sized_block, closest_sized_block_prev, desired_block_size);
     }
 
     //==============================================================================
