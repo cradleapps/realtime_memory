@@ -423,10 +423,17 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         catch (const std::bad_alloc&)
         {}
 
-        // Return all the blocks except one in the middle
-        for (std::size_t i = 0; i < ptrs.size(); ++i)
-            if (i != ptrs.size() / 2)
-                res.deallocate (ptrs[i], smallBlockSize, alignment);
+        // Return all the blocks except one in the middle.
+        // We do this in random order, to ensure the the free list must be sorted.
+        const auto middlePtr = ptrs[ptrs.size() / 2];
+        const auto permutation = Catch::Generators::random (0ul, ptrs.size()).next();
+
+        for (std::size_t i = 0; i < permutation; ++i)
+            std::next_permutation (ptrs.begin(), ptrs.end());
+
+        for (auto p : ptrs)
+            if (p != middlePtr)
+                res.deallocate (p, smallBlockSize, alignment);
 
         // Check that the two areas either side of the still-active pointer
         // can be re-merged in a defragmentation step.
