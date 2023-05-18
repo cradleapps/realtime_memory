@@ -12,7 +12,8 @@ FetchContent_MakeAvailable(Catch2)
 add_executable(realtime_memory_tests
   main.cpp
   resource_tests.cpp;
-  allocator_tests.cpp)
+  allocator_tests.cpp;
+  utilities_tests.cpp)
 target_link_libraries(realtime_memory_tests PRIVATE
   realtime_memory
   Catch2::Catch2WithMain)

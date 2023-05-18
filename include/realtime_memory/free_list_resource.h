@@ -22,6 +22,7 @@
  */
 #pragma once
 #include <realtime_memory/memory_resources.h>
+#include <realtime_memory/utilities.h>
 
 namespace cradle::pmr
 {
@@ -122,37 +123,10 @@ private:
     // closest in size to the the desired block size.
     void* defragment (std::size_t desired_block_size)
     {
-        if (first_free == nullptr || first_free->next == nullptr)
-            return nullptr;
-
         // First we sort the free list so that it's ordered by pointer position (lowest first)
-        while (true)
-        {
-            bool anySwapped = false;
-
-            for (mem_block* p0 = first_free->next, *p1 = first_free, *p2 = nullptr; p0 != nullptr && p1 != nullptr;)
-            {
-                if (reinterpret_cast<std::size_t> (p0) < reinterpret_cast<std::size_t> (p1))
-                {
-                    if (p2 == nullptr)
-                        first_free = p0;
-                    else
-                        p2->next = p0;
-
-                    p1->next = p0->next;
-                    p0->next = p1;
-                    std::swap (p0, p1);
-                    anySwapped = true;
-                }
-
-                p2 = p1;
-                p1 = p0;
-                p0 = p0->next;
-            }
-
-            if (! anySwapped)
-                break;
-        }
+        first_free = merge_sort_list (first_free, [] (mem_block* a, mem_block* b) {
+            return reinterpret_cast<std::size_t> (a) < reinterpret_cast<std::size_t> (b);
+        });
 
         // Now we iterate the free blocks, merging the next block along if it's also free.
         // While we do this, we look for a block that is suitable for use by the caller.

@@ -426,7 +426,7 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         // Return all the blocks except one in the middle.
         // We do this in random order, to ensure the the free list must be sorted.
         const auto middlePtr = ptrs[ptrs.size() / 2];
-        const auto permutation = Catch::Generators::random (0ul, ptrs.size()).next();
+        const auto permutation = Catch::Generators::random (0ul, ptrs.size()).get();
 
         for (std::size_t i = 0; i < permutation; ++i)
             std::next_permutation (ptrs.begin(), ptrs.end());
