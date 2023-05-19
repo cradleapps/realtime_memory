@@ -1,7 +1,6 @@
 //==============================================================================
-// Copyright (c) 2019-2022 CradleApps, LLC - All Rights Reserved
+// Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
-/** Utility functions for the  */
 #pragma once
 #include <utility>
 
@@ -13,8 +12,8 @@ namespace cradle::pmr
  *   - `compare_nodes_fn` should take two `list_node` pointers and
  *     return true if the first should be before the second in the list.
  *
- *  This is probably the fastest a sort of a singly linked list
- *  can be without allocating auxiliary memory.
+ *  This is probably the fastest  way of sorting a singly linked list
+ *  without allocating auxiliary memory.
  *
  *  Inspired by this public-domain pseudocode:
  *  https://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html

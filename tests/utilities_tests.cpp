@@ -1,10 +1,8 @@
 //==============================================================================
-// Copyright (c) 2019-2022 CradleApps, LLC - All Rights Reserved
-//
-// This file is part of the Cradle Engine. Unauthorised copying and
-// redistribution is strictly prohibited. Proprietary and confidential.
+// Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 
+#include <memory>
 #include "realtime_memory/utilities.h"
 
 #include <catch2/catch_test_macros.hpp>
@@ -24,17 +22,21 @@ TEST_CASE ("merge sort linked lists")
         explicit node (int d) : data (d) {}
     };
 
-    const int listLength = 1000;
+    const int listTailLength = 1000;
     auto rand = Catch::Generators::random<int> (0, 100000);
 
     // Build the list
     auto head = new node (rand.get());
     auto current = head;
 
-    for (int i = 0; i < listLength; ++i, rand.next())
+    auto deleter = std::vector<std::unique_ptr<node>>();
+    deleter.emplace_back (head);
+
+    for (int i = 0; i < listTailLength; ++i, rand.next())
     {
         current->next = new node (rand.get());
         current = current->next;
+        deleter.emplace_back (current);
     }
 
     const auto lowestFirst  = [] (node* a, node* b) { return a->data < b->data; };
@@ -44,41 +46,33 @@ TEST_CASE ("merge sort linked lists")
     {
         head = cradle::pmr::merge_sort_list (head, lowestFirst);
 
-        int numInList = 0;
-        int numSorted = 0;
+        int numListPairs = 0;
+        int numSortedPairs = 0;
 
         for (auto n = head; n != nullptr && n->next != nullptr; n = n->next)
         {
-            numSorted += n->data <= n->next->data ? 1 : 0;
-            ++numInList;
+            numSortedPairs += n->data <= n->next->data ? 1 : 0;
+            ++numListPairs;
         }
 
-        CHECK (numInList == listLength);
-        CHECK (numSorted == listLength);
+        CHECK (numListPairs == listTailLength);
+        CHECK (numSortedPairs == listTailLength);
     }
 
     SECTION ("Sort highest first")
     {
         head = cradle::pmr::merge_sort_list (head, highestFirst);
 
-        int numInList = 0;
-        int numSorted = 0;
+        int numListPairs = 0;
+        int numSortedPairs = 0;
 
         for (auto n = head; n != nullptr && n->next != nullptr; n = n->next)
         {
-            numSorted += n->data >= n->next->data ? 1 : 0;
-            ++numInList;
+            numSortedPairs += n->data >= n->next->data ? 1 : 0;
+            ++numListPairs;
         }
 
-        CHECK (numInList == listLength);
-        CHECK (numSorted == listLength);
-    }
-
-    // Free the list
-    while (head != nullptr)
-    {
-        auto next = head->next;
-        delete head;
-        head = next;
+        CHECK (numListPairs == listTailLength);
+        CHECK (numSortedPairs == listTailLength);
     }
 }

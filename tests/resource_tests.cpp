@@ -1,8 +1,5 @@
 //==============================================================================
-// Copyright (c) 2019-2022 CradleApps, LLC - All Rights Reserved
-//
-// This file is part of the Cradle Engine. Unauthorised copying and
-// redistribution is strictly prohibited. Proprietary and confidential.
+// Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 
 #include <unordered_set>
