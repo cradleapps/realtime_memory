@@ -12,7 +12,7 @@ namespace cradle::pmr
  *   - `compare_nodes_fn` should take two `list_node` pointers and
  *     return true if the first should be before the second in the list.
  *
- *  This is probably the fastest  way of sorting a singly linked list
+ *  This is probably the fastest way of sorting a singly linked list
  *  without allocating auxiliary memory.
  *
  *  Inspired by this public-domain pseudocode:
