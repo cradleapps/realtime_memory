@@ -17,4 +17,4 @@ jobs:
       - name: Build project
         run: cd build && cmake --build .
       - name: Run tests
-        run: cd build && ctest .
+        run: cd build && ctest . --verbose

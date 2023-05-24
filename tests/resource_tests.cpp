@@ -1,8 +1,5 @@
 //==============================================================================
-// Copyright (c) 2019-2022 CradleApps, LLC - All Rights Reserved
-//
-// This file is part of the Cradle Engine. Unauthorised copying and
-// redistribution is strictly prohibited. Proprietary and confidential.
+// Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 
 #include <unordered_set>
@@ -399,6 +396,45 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
 
         res.deallocate (ptr1, 3, 1);
         res.deallocate (ptr2, bytes, align);
+    }
+
+    SECTION ("Re-merges split blocks that have been returned (defragmentation)")
+    {
+        std::vector<std::byte> buf (512, std::byte(0));
+        std::vector<void*> ptrs;
+
+        cradle::pmr::free_list_resource res (buf.data(), buf.size());
+
+        const std::size_t alignment = 1;
+        const std::size_t smallBlockSize = 2;
+        const std::size_t largeBlockSize = 200;
+
+        // Allocate small blocks that split up the free list.
+        // We don't know the exact capacity of the resource due
+        // to its internal bookkeeping, so we keep going until it throws.
+        try
+        {
+            while (true)
+                ptrs.push_back (res.allocate (smallBlockSize, alignment));
+        }
+        catch (const std::bad_alloc&)
+        {}
+
+        // Return all the blocks except one in the middle.
+        // We do this in random order, to ensure the the free list must be sorted.
+        const auto middlePtr = ptrs[ptrs.size() / 2];
+        const auto seed = Catch::Generators::Detail::getSeed();
+        std::shuffle (ptrs.begin(), ptrs.end(), std::default_random_engine (seed));
+
+        for (auto p : ptrs)
+            if (p != middlePtr)
+                res.deallocate (p, smallBlockSize, alignment);
+
+        // Check that the two areas either side of the still-active pointer
+        // can be re-merged in a defragmentation step.
+        CHECK (res.allocate (largeBlockSize, alignment));
+        CHECK (res.allocate (largeBlockSize, alignment));
+        CHECK_THROWS_AS (res.allocate (largeBlockSize, alignment), std::bad_alloc);
     }
 }
 
