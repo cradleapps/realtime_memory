@@ -316,10 +316,7 @@ namespace detail
     inline std::size_t mono_default_nextbuf_size = 32 * sizeof(void*);
     inline std::size_t max_u32 = (std::size_t) std::numeric_limits<std::uint32_t>::max();
 
-    inline pool_options default_pool_options = {
-        .max_blocks_per_chunk = std::size_t (1 << 15),
-        .largest_required_pool_block = 4096
-    };
+    inline pool_options default_pool_options = {std::size_t (1 << 15), 4096};
 
     // Note: Undefined behaviour if 'align' is not a power of two!
     constexpr std::size_t aligned_ceil (size_t size, size_t align) noexcept
