@@ -17,3 +17,9 @@ add_executable(realtime_memory_tests
 target_link_libraries(realtime_memory_tests PRIVATE
   realtime_memory
   Catch2::Catch2WithMain)
+
+if(MSVC)
+    target_compile_options(realtime_memory_tests PRIVATE /W4 /WX)
+else()
+    target_compile_options(realtime_memory_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
