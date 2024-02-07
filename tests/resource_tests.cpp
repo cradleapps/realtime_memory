@@ -261,10 +261,7 @@ TEST_CASE ("unsynchronized_pool_resource", "[memory_resource]")
         const auto largestBlock = GENERATE (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
         CAPTURE (maxBlocks, largestBlock);
 
-        pmr::pool_options options {
-            .max_blocks_per_chunk = maxBlocks,
-            .largest_required_pool_block = largestBlock
-        };
+        pmr::pool_options options {maxBlocks, largestBlock};
         pmr::unsynchronized_pool_resource pool (options, nullptr);
 
         const auto expectedLargestBlock = std::min (largestBlock, max_u32);
@@ -424,7 +421,7 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         {}
 
         // Return all the blocks except one in the middle.
-        // We do this in random order, to ensure the the free list must be sorted.
+        // We do this in random order, to ensure the free list must be sorted.
         const auto middlePtr = ptrs[ptrs.size() / 2];
         const auto seed = Catch::Generators::Detail::getSeed();
         std::shuffle (ptrs.begin(), ptrs.end(), std::default_random_engine (seed));
