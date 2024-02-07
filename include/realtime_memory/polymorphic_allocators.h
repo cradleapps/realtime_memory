@@ -6,6 +6,8 @@
 #include "pmr_includes.h"
 #include "memory_resources.h"
 
+PMR_DIAGNOSTIC_PUSH
+
 namespace cradle::pmr
 {
 /** A simple alias would trigger 'undefined symbols for get_default_resource()' on ARM. */
@@ -115,3 +117,5 @@ bool operator!= (const propagating_allocator<ValueType1>& alloc1,
 }
 
 } // cradle::pmr
+
+PMR_DIAGNOSTIC_POP
