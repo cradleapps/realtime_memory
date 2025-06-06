@@ -2,6 +2,8 @@
 // Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 
+#include <numeric>
+#include <random>
 #include <unordered_set>
 #include <unordered_map>
 

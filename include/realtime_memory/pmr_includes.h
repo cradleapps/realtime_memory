@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <stdexcept>
+#include <utility>
 #include <vector>
+
 
 #if defined (__apple_build_version__)
   #if (__apple_build_version__ < 1500000)
