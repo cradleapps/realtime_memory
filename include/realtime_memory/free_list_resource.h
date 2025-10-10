@@ -30,14 +30,34 @@ namespace cradle::pmr
 class free_list_resource : public cradle::pmr::identity_equal_resource
 {
 public:
-    free_list_resource (void* buffer, std::size_t buffer_size)
-      : space (buffer_size)
+    /** Allocate from a buffer. Throws when this runs out. */
+    free_list_resource (std::byte* buffer, std::size_t buffer_size)
     {
-        if (buffer == nullptr || buffer_size < sizeof(mem_block))
+        expand (buffer, buffer_size);
+    }
+
+    /** Allocate from an upstream memory resource. */
+    free_list_resource (memory_resource& upstream_resource, std::size_t initial_size)
+      : upstream (&upstream_resource)
+    {
+        expand (upstream->allocate (initial_size, 1), initial_size);
+    }
+
+    /** Add more memory that can be used for allocations.
+     *  If you supplied a capable upstream_resource constructor, you don't
+     *  need to use this and more memory will be allocated automatically.
+     *
+     *  However, if you are working in a domain where you can allocate/replenish
+     *  memory at certain times and not others, this allows you to do that.
+     */
+    void expand (void* new_memory, std::size_t new_memory_size)
+    {
+        if (new_memory == nullptr || new_memory_size < sizeof(mem_block))
             throw std::bad_alloc();
 
-        auto pos = align_block (buffer, space);
-        first_free = ::new (pos) mem_block (nullptr, space - mem_block::header_size());
+        auto pos = align_block (new_memory, new_memory_size);
+        space += new_memory_size;
+        first_free = ::new (pos) mem_block (first_free, new_memory_size - mem_block::header_size());
     }
 
     /** Returns the remaining space in the buffer, in bytes. */
@@ -59,9 +79,13 @@ private:
             throw std::bad_alloc(); // Over-alignment is not currently supported!
 
         const auto size = cradle::pmr::detail::aligned_ceil (bytes, std::min (align, max_align_bytes));
+        constexpr auto realloc_size = std::size_t (64 * 1024);
 
         if ((size + mem_block::header_size()) >= space)
-            throw std::bad_alloc(); // out of memory.
+        {
+            const auto next_chunk_size = std::max (realloc_size, size + mem_block::header_size() * 2);
+            expand (upstream->allocate (next_chunk_size, max_align_bytes), next_chunk_size);
+        }
 
         for (mem_block* free = first_free, *prev = nullptr; free != nullptr; prev = free, free = free->next)
             if (free->size >= size)
@@ -71,7 +95,10 @@ private:
         if (auto defragmented_block = defragment (size))
             return defragmented_block;
 
-        throw std::bad_alloc(); // still too fragmented, abort
+        // Still too fragmented: we'll have to allocate another chunk.
+        const auto next_chunk_size = std::max (realloc_size, size + mem_block::header_size() * 2);
+        expand (upstream->allocate (next_chunk_size, max_align_bytes), next_chunk_size);
+        return do_allocate (bytes, align);
     }
 
     void do_deallocate (void* ptr, std::size_t, std::size_t) override
@@ -235,6 +262,7 @@ private:
     static constexpr auto max_align_bytes = alignof (std::max_align_t);
 
     //==============================================================================
+    memory_resource* upstream = null_memory_resource();
     mem_block* first_free = nullptr;
     std::size_t space = 0;
     std::size_t num_allocs = 0;
