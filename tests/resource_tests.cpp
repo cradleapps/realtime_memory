@@ -343,14 +343,14 @@ TEST_CASE ("unsynchronized_pool_resource", "[memory_resource]")
 
 //==============================================================================
 /** Our custom 'recycling' resource. */
-TEST_CASE ("free_list_resource", "[memory_resource]")
+TEST_CASE ("free_list_resource basics", "[memory_resource]")
 {
-    std::vector<std::byte> buf1 (256, std::byte(0)), buf2 (256, std::byte(0));
+    namespace pmr = cradle::pmr;
 
     SECTION ("Only compares equal with itself")
     {
-        cradle::pmr::free_list_resource res1 (buf1.data(), buf1.size());
-        cradle::pmr::free_list_resource res2 (buf2.data(), buf2.size());
+        pmr::free_list_resource res1 (*pmr::get_default_resource(), 256);
+        pmr::free_list_resource res2 (*pmr::get_default_resource(), 256);
 
         CHECK (res1 == res1);
         CHECK_FALSE (res1 == res2);
@@ -364,17 +364,15 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
                        "FreeListBufferResource must not be copy assignable");
     }
 
-    SECTION ("Throws bad_alloc when the buffer is exhausted")
+    SECTION ("Throws bad_alloc on a request for zero memory")
     {
-        cradle::pmr::free_list_resource res (buf1.data(), buf1.size());
-
-        CHECK_NOTHROW (res.allocate (buf1.size() - 32, 4));
-        CHECK_THROWS_AS (res.allocate (32, 4), std::bad_alloc);
+        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
+        CHECK_THROWS_AS (res.allocate (0, 1), std::bad_alloc);
     }
 
     SECTION ("Throws bad_alloc on a request for overaligned memory")
     {
-        cradle::pmr::free_list_resource res (buf1.data(), buf1.size());
+        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
 
         auto align = alignof(std::max_align_t) * 2;
 
@@ -383,7 +381,7 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
 
     SECTION ("Delivers alignment up to alignof(std::max_align_t)")
     {
-        cradle::pmr::free_list_resource res (buf1.data(), buf1.size());
+        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
 
         auto align = GENERATE (as<std::size_t>(), 1, 2, 4, alignof(std::max_align_t));
         auto bytes = GENERATE (as<std::size_t>(), 1, 3, 7, 8, 41, 77);
@@ -397,13 +395,27 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         res.deallocate (ptr1, 3, 1);
         res.deallocate (ptr2, bytes, align);
     }
+}
+
+TEST_CASE ("free_list_resource (backed by buffer)", "[memory_resource]")
+{
+    namespace pmr = cradle::pmr;
+    std::vector<std::byte> buf1 (256, std::byte(0)), buf2 (256, std::byte(0));
+
+    SECTION ("Throws bad_alloc when the buffer is exhausted")
+    {
+        pmr::free_list_resource res (buf1.data(), buf1.size());
+
+        CHECK_NOTHROW (res.allocate (buf1.size() - 32, 4));
+        CHECK_THROWS_AS (res.allocate (32, 4), std::bad_alloc);
+    }
 
     SECTION ("Re-merges split blocks that have been returned (defragmentation)")
     {
         std::vector<std::byte> buf (512, std::byte(0));
         std::vector<void*> ptrs;
 
-        cradle::pmr::free_list_resource res (buf.data(), buf.size());
+        pmr::free_list_resource res (buf.data(), buf.size());
 
         const std::size_t alignment = 1;
         const std::size_t smallBlockSize = 2;
@@ -435,6 +447,79 @@ TEST_CASE ("free_list_resource", "[memory_resource]")
         CHECK (res.allocate (largeBlockSize, alignment));
         CHECK (res.allocate (largeBlockSize, alignment));
         CHECK_THROWS_AS (res.allocate (largeBlockSize, alignment), std::bad_alloc);
+    }
+}
+
+TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource]")
+{
+    namespace pmr = cradle::pmr;
+    tracking_memory_resource upstream;
+
+    constexpr std::size_t newChunkSize = 64 * 1024;
+
+    SECTION ("Requests more memory from upstream when exhausted")
+    {
+        pmr::free_list_resource res (upstream, 256);
+
+        const auto initial = upstream.total_allocated();
+
+        CHECK (initial == 256);
+        res.allocate (230, 1);
+        CHECK (upstream.total_allocated() == initial);
+        res.allocate (39, 2);
+        CHECK (upstream.total_allocated() == initial + newChunkSize);
+    }
+
+    SECTION ("Extra memory chunks can be supplied from outside")
+    {
+        pmr::free_list_resource res (upstream, 256);
+
+        res.allocate (230, 1);
+
+        res.expand (upstream.allocate (256, 1), 256);
+        const auto used = upstream.total_allocated();
+
+        CHECK (res.allocate (160, 1));
+        CHECK (upstream.total_allocated() == used);
+    }
+
+    SECTION ("Extra memory chunks supplied from outside are linked together")
+    {
+        pmr::free_list_resource res (upstream, 256);
+
+        res.expand (upstream.allocate (256, 1), 256);
+        res.expand (upstream.allocate (256, 1), 256);
+        res.expand (upstream.allocate (256, 1), 256);
+
+        const auto used = upstream.total_allocated();
+
+        auto ptr1 = res.allocate (200, 1);
+        auto ptr2 = res.allocate (200, 1);
+        auto ptr3 = res.allocate (200, 1);
+        auto ptr4 = res.allocate (200, 1);
+        CHECK_FALSE (ptr1 == nullptr);
+        CHECK_FALSE (ptr2 == nullptr);
+        CHECK_FALSE (ptr3 == nullptr);
+        CHECK_FALSE (ptr4 == nullptr);
+
+        CHECK (upstream.total_allocated() == used);
+
+        SECTION ("Allocation that cannot be satisfied (allocate from upstream)")
+        {
+            // Now it must allocate, because no single chunk has the required space left
+            CHECK (res.allocate (200, 1));
+            CHECK (upstream.total_allocated() == used + newChunkSize);
+        }
+
+        SECTION ("Free then allocate into one of the existing chunks")
+        {
+            // check smaller, equal and larger sizes (checks de-frag).
+            auto size = GENERATE (as<std::size_t>(), 160, 200, 230);
+
+            res.deallocate (ptr2, 200, 1);
+            CHECK (res.allocate (size, 1));
+            CHECK (upstream.total_allocated() == used);
+        }
     }
 }
 

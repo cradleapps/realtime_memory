@@ -392,7 +392,7 @@ inline monotonic_buffer_resource::monotonic_buffer_resource (std::size_t initial
 {}
 
 inline monotonic_buffer_resource::monotonic_buffer_resource (std::size_t initial_size,
-                                                      memory_resource* up) noexcept
+                                                             memory_resource* up) noexcept
     : upstream (up ? *up : *get_default_resource()),
       currentbuf (nullptr),
       currentbuf_size (0),
@@ -405,8 +405,8 @@ inline monotonic_buffer_resource::monotonic_buffer_resource (void* buf, std::siz
 
 
 inline monotonic_buffer_resource::monotonic_buffer_resource (void* buf,
-                                                      std::size_t bufsize,
-                                                      memory_resource* up) noexcept
+                                                             std::size_t bufsize,
+                                                             memory_resource* up) noexcept
     : upstream (up ? *up : *get_default_resource()),
       currentbuf (buf),
       currentbuf_size (bufsize),
