@@ -4,6 +4,8 @@
 
 #include <unordered_set>
 #include <unordered_map>
+#include <numeric>
+#include <random>
 
 #include "realtime_memory/memory_resources.h"
 #include "realtime_memory/free_list_resource.h"
@@ -347,13 +349,18 @@ TEST_CASE ("free_list_resource basics", "[memory_resource]")
 {
     namespace pmr = cradle::pmr;
 
+    std::vector<std::byte> buf (256, std::byte (0));
+    pmr::free_list_resource res (buf.data(), buf.size());
+
     SECTION ("Only compares equal with itself")
     {
-        pmr::free_list_resource res1 (*pmr::get_default_resource(), 256);
         pmr::free_list_resource res2 (*pmr::get_default_resource(), 256);
+        pmr::free_list_resource res3 (*pmr::get_default_resource(), 256);
 
-        CHECK (res1 == res1);
-        CHECK_FALSE (res1 == res2);
+        CHECK (res == res);
+        CHECK (res2 == res2);
+        CHECK_FALSE (res == res2);
+        CHECK_FALSE (res2 == res3);
     }
 
     SECTION ("Non-copyable")
@@ -366,14 +373,11 @@ TEST_CASE ("free_list_resource basics", "[memory_resource]")
 
     SECTION ("Throws bad_alloc on a request for zero memory")
     {
-        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
         CHECK_THROWS_AS (res.allocate (0, 1), std::bad_alloc);
     }
 
     SECTION ("Throws bad_alloc on a request for overaligned memory")
     {
-        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
-
         auto align = alignof(std::max_align_t) * 2;
 
         CHECK_THROWS_AS (res.allocate (4, align), std::bad_alloc);
@@ -381,8 +385,6 @@ TEST_CASE ("free_list_resource basics", "[memory_resource]")
 
     SECTION ("Delivers alignment up to alignof(std::max_align_t)")
     {
-        pmr::free_list_resource res (*pmr::get_default_resource(), 256);
-
         auto align = GENERATE (as<std::size_t>(), 1, 2, 4, alignof(std::max_align_t));
         auto bytes = GENERATE (as<std::size_t>(), 1, 3, 7, 8, 41, 77);
         CAPTURE (bytes, align);
@@ -455,19 +457,32 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
     namespace pmr = cradle::pmr;
     tracking_memory_resource upstream;
 
-    constexpr std::size_t newChunkSize = 64 * 1024;
-
     SECTION ("Requests more memory from upstream when exhausted")
     {
-        pmr::free_list_resource res (upstream, 256);
+        constexpr std::size_t initialSize = 256, minChunkSize = 512;
 
+        pmr::free_list_resource res (upstream, initialSize, minChunkSize);
         const auto initial = upstream.total_allocated();
 
-        CHECK (initial == 256);
-        res.allocate (230, 1);
+        CHECK (initial == initialSize);
+
+        constexpr auto alloc1Size = initialSize - 32;
+        constexpr auto alloc2Size = 39;
+
+        auto ptr1 = res.allocate (alloc1Size, 1);
         CHECK (upstream.total_allocated() == initial);
-        res.allocate (39, 2);
-        CHECK (upstream.total_allocated() == initial + newChunkSize);
+
+        res.allocate (alloc2Size, 2);
+        CHECK (upstream.total_allocated() == initial + minChunkSize);
+
+        SECTION ("Freed memory from both chunks is reusable with no additional allocations")
+        {
+            res.deallocate (ptr1, alloc1Size, 1);
+
+            res.allocate (alloc1Size, 1); // reuse first chunk
+            res.allocate (minChunkSize - alloc2Size - 64, 1); // use remainder of second chunk (minus header usage).
+            CHECK (upstream.total_allocated() == initial + minChunkSize);
+        }
     }
 
     SECTION ("Extra memory chunks can be supplied from outside")
@@ -485,7 +500,8 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
 
     SECTION ("Extra memory chunks supplied from outside are linked together")
     {
-        pmr::free_list_resource res (upstream, 256);
+        constexpr std::size_t minChunkSize = 512;
+        pmr::free_list_resource res (upstream, 256, minChunkSize);
 
         res.expand (upstream.allocate (256, 1), 256);
         res.expand (upstream.allocate (256, 1), 256);
@@ -508,7 +524,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
         {
             // Now it must allocate, because no single chunk has the required space left
             CHECK (res.allocate (200, 1));
-            CHECK (upstream.total_allocated() == used + newChunkSize);
+            CHECK (upstream.total_allocated() == used + minChunkSize);
         }
 
         SECTION ("Free then allocate into one of the existing chunks")
