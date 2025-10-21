@@ -166,37 +166,38 @@ private:
         mem_block* closest_sized_block = nullptr;
         mem_block* closest_sized_block_prev = nullptr;
 
-        for (mem_block* free = first_free, *prev = nullptr; free != nullptr && free->next != nullptr;)
+        for (mem_block* free = first_free, *prev = nullptr; free != nullptr;)
         {
-            auto next = free->next;
-            const auto thisStart = free->data();
-            const auto thisEnd = thisStart + free->size;
-            const auto nextHeader = reinterpret_cast<std::byte*> (next);
-
-            if (nextHeader - thisEnd <= std::ptrdiff_t (max_align_bytes))
+            // merging next block along if it's free
+            while (free->next)
             {
-                const auto nextEnd = next->data() + next->size;
+                auto next = free->next;
+                auto thisEnd = free->data() + free->size;
+                auto nextHeader = reinterpret_cast<std::byte*> (next);
 
-                free->size = std::size_t (nextEnd - thisStart);
+                if (nextHeader - thisEnd > std::ptrdiff_t (max_align_bytes))
+                    break;
+
+                auto nextEnd = next->data() + next->size;
+                free->size = std::size_t (nextEnd - free->data());
                 free->next = next->next;
             }
-            else
+
+            // look for a block that is suitable for use by the caller
+            if (free->size >= desired_block_size)
             {
-                if (free->size >= desired_block_size)
+                const auto diff = free->size - desired_block_size;
+
+                if (diff < closest_size_diff)
                 {
-                    const auto diff = free->size - desired_block_size;
-
-                    if (diff < closest_size_diff)
-                    {
-                        closest_size_diff = diff;
-                        closest_sized_block = free;
-                        closest_sized_block_prev = prev;
-                    }
+                    closest_size_diff = diff;
+                    closest_sized_block = free;
+                    closest_sized_block_prev = prev;
                 }
-
-                prev = free;
-                free = free->next;
             }
+
+            prev = free;
+            free = free->next;
         }
 
         if (closest_sized_block == nullptr)
