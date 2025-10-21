@@ -2,8 +2,9 @@
 // Copyright (c) 2019-2022 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 /** A std::pmr compatible memory_resource that can allocate and
- *  free blocks of any size from a fixed buffer. If the buffer
- *  is exhausted, std::bad_alloc() is thrown.
+ *  free blocks of any size. It can be supplied from an upstream
+ *  resource, a fixed buffer, or a series of fixed buffers pushed
+ *  in by an external routine (to allow async allocation techniques).
  *
  *  Important notes:
  *    - This resource is single-threaded
@@ -30,22 +31,30 @@ namespace cradle::pmr
 class free_list_resource : public cradle::pmr::identity_equal_resource
 {
 public:
-    /** Allocate from a buffer. Throws when this runs out. */
+    /** Allocate from a buffer. Allocations throw when this runs out. */
     free_list_resource (std::byte* buffer, std::size_t buffer_size)
     {
         expand (buffer, buffer_size);
     }
 
-    /** Allocate from an upstream memory resource. */
-    free_list_resource (memory_resource& upstream_resource, std::size_t initial_size)
-      : upstream (&upstream_resource)
+    /** Allocate from an upstream memory resource.
+     *
+     *  The min_realloc_size describes the minimum size of the memory
+     *  chunk requested from the upstream when the current one runs out.
+     */
+    free_list_resource (memory_resource& upstream_resource,
+                        std::size_t initial_size,
+                        std::size_t min_chunk_size = std::size_t (64 * 1024))
+      : upstream (&upstream_resource),
+        min_realloc_size (min_chunk_size)
     {
         expand (upstream->allocate (initial_size, 1), initial_size);
     }
 
     /** Add more memory that can be used for allocations.
      *  If you supplied a capable upstream_resource constructor, you don't
-     *  need to use this and more memory will be allocated automatically.
+     *  need to use this and more memory will be requested from the upstream
+     *  resource if needed.
      *
      *  However, if you are working in a domain where you can allocate/replenish
      *  memory at certain times and not others, this allows you to do that.
@@ -79,13 +88,10 @@ private:
             throw std::bad_alloc(); // Over-alignment is not currently supported!
 
         const auto size = cradle::pmr::detail::aligned_ceil (bytes, std::min (align, max_align_bytes));
-        constexpr auto realloc_size = std::size_t (64 * 1024);
+        const auto next_chunk_size = std::max (min_realloc_size, size + mem_block::header_size());
 
         if ((size + mem_block::header_size()) >= space)
-        {
-            const auto next_chunk_size = std::max (realloc_size, size + mem_block::header_size() * 2);
             expand (upstream->allocate (next_chunk_size, max_align_bytes), next_chunk_size);
-        }
 
         for (mem_block* free = first_free, *prev = nullptr; free != nullptr; prev = free, free = free->next)
             if (free->size >= size)
@@ -96,7 +102,6 @@ private:
             return defragmented_block;
 
         // Still too fragmented: we'll have to allocate another chunk.
-        const auto next_chunk_size = std::max (realloc_size, size + mem_block::header_size() * 2);
         expand (upstream->allocate (next_chunk_size, max_align_bytes), next_chunk_size);
         return do_allocate (bytes, align);
     }
@@ -266,6 +271,7 @@ private:
     mem_block* first_free = nullptr;
     std::size_t space = 0;
     std::size_t num_allocs = 0;
+    std::size_t min_realloc_size = 0;
 };
 
 } // namespace cradle
