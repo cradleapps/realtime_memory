@@ -2,10 +2,10 @@
 // Copyright (c) 2019-2023 CradleApps, LLC - All Rights Reserved
 //==============================================================================
 
-#include <unordered_set>
-#include <unordered_map>
 #include <numeric>
 #include <random>
+#include <unordered_set>
+#include <unordered_map>
 
 #include "realtime_memory/memory_resources.h"
 #include "realtime_memory/free_list_resource.h"
@@ -472,15 +472,15 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
         auto ptr1 = res.allocate (alloc1Size, 1);
         CHECK (upstream.total_allocated() == initial);
 
-        res.allocate (alloc2Size, 2);
+        [[maybe_unused]] auto unused1 = res.allocate (alloc2Size, 2);
         CHECK (upstream.total_allocated() == initial + minChunkSize);
 
         SECTION ("Freed memory from both chunks is reusable with no additional allocations")
         {
             res.deallocate (ptr1, alloc1Size, 1);
 
-            res.allocate (alloc1Size, 1); // reuse first chunk
-            res.allocate (minChunkSize - alloc2Size - 64, 1); // use remainder of second chunk (minus header usage).
+            [[maybe_unused]] auto unused2 = res.allocate (alloc1Size, 1); // reuse first chunk
+            [[maybe_unused]] auto unused3 = res.allocate (minChunkSize - alloc2Size - 64, 1); // use remainder of second chunk (minus header usage).
             CHECK (upstream.total_allocated() == initial + minChunkSize);
         }
     }
@@ -489,7 +489,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
     {
         pmr::free_list_resource res (upstream, 256);
 
-        res.allocate (230, 1);
+        [[maybe_unused]] auto unused1 = res.allocate (230, 1);
 
         res.expand (upstream.allocate (256, 1), 256);
         const auto used = upstream.total_allocated();
