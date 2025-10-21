@@ -498,7 +498,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
         CHECK (upstream.total_allocated() == used);
     }
 
-    SECTION ("Extra memory chunks supplied from outside are linked together")
+    SECTION ("Additional chunks supplied from outside can all be used")
     {
         constexpr std::size_t minChunkSize = 512;
         pmr::free_list_resource res (upstream, 256, minChunkSize);
@@ -534,6 +534,50 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
 
             res.deallocate (ptr2, 200, 1);
             CHECK (res.allocate (size, 1));
+            CHECK (upstream.total_allocated() == used);
+        }
+    }
+
+    SECTION ("Additional chunks that are sequential can be de-fragmented into one")
+    {
+        pmr::free_list_resource res (upstream, 256);
+        REQUIRE (upstream.total_allocated() == 256);
+
+        std::vector<std::byte> buf (768, std::byte (0));
+        res.expand (buf.data(), 256);
+        res.expand (buf.data() + 256, 256);
+        res.expand (buf.data() + 512, 256);
+
+        auto ptr1 = res.allocate (200, 1);
+        auto ptr2 = res.allocate (200, 1);
+        auto ptr3 = res.allocate (200, 1);
+        auto ptr4 = res.allocate (200, 1);
+        REQUIRE_FALSE (ptr1 == nullptr);
+        REQUIRE_FALSE (ptr2 == nullptr);
+        REQUIRE_FALSE (ptr3 == nullptr);
+        REQUIRE_FALSE (ptr4 == nullptr);
+        REQUIRE (upstream.total_allocated() == 256);
+
+        res.deallocate (ptr1, 200);
+        res.deallocate (ptr2, 200);
+        res.deallocate (ptr3, 200);
+        res.deallocate (ptr4, 200);
+
+        SECTION ("When defragmentation can find a large enough block")
+        {
+            auto ptr5 = res.allocate (710, 1); // triggers defragmentation
+            CHECK_FALSE (ptr5 == nullptr);
+            CHECK (upstream.total_allocated() == 256); // served from existing chunks
+        }
+
+        SECTION ("When defragmentation can't find a block")
+        {
+            auto ptr5 = res.allocate (780, 1); // too large, even after degfragmentation
+            CHECK_FALSE (ptr5 == nullptr);
+            auto used = upstream.total_allocated();
+            CHECK (used > 256); // served from upstream
+
+            CHECK (res.allocate (720, 1)); // can still use block found during defragmentation
             CHECK (upstream.total_allocated() == used);
         }
     }
