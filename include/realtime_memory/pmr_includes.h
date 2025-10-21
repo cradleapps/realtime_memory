@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cassert>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 
 #if defined (__apple_build_version__)
