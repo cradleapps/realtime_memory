@@ -446,8 +446,8 @@ TEST_CASE ("free_list_resource (backed by buffer)", "[memory_resource]")
 
         // Check that the two areas either side of the still-active pointer
         // can be re-merged in a defragmentation step.
-        CHECK (res.allocate (largeBlockSize, alignment));
-        CHECK (res.allocate (largeBlockSize, alignment));
+        CHECK (res.allocate (largeBlockSize, alignment) != nullptr);
+        CHECK (res.allocate (largeBlockSize, alignment) != nullptr);
         CHECK_THROWS_AS (res.allocate (largeBlockSize, alignment), std::bad_alloc);
     }
 }
@@ -494,7 +494,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
         res.expand (upstream.allocate (256, 1), 256);
         const auto used = upstream.total_allocated();
 
-        CHECK (res.allocate (160, 1));
+        CHECK (res.allocate (160, 1) != nullptr);
         CHECK (upstream.total_allocated() == used);
     }
 
@@ -523,7 +523,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
         SECTION ("Allocation that cannot be satisfied (allocate from upstream)")
         {
             // Now it must allocate, because no single chunk has the required space left
-            CHECK (res.allocate (200, 1));
+            CHECK (res.allocate (200, 1) != nullptr);
             CHECK (upstream.total_allocated() == used + minChunkSize);
         }
 
@@ -533,7 +533,7 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
             auto size = GENERATE (as<std::size_t>(), 160, 200, 230);
 
             res.deallocate (ptr2, 200, 1);
-            CHECK (res.allocate (size, 1));
+            CHECK (res.allocate (size, 1) != nullptr);
             CHECK (upstream.total_allocated() == used);
         }
     }
@@ -565,19 +565,17 @@ TEST_CASE ("free_list_resource (backed by upstream resource)", "[memory_resource
 
         SECTION ("When defragmentation can find a large enough block")
         {
-            auto ptr5 = res.allocate (710, 1); // triggers defragmentation
-            CHECK_FALSE (ptr5 == nullptr);
+            CHECK (res.allocate (710, 1) != nullptr); // triggers defragmentation
             CHECK (upstream.total_allocated() == 256); // served from existing chunks
         }
 
         SECTION ("When defragmentation can't find a block")
         {
-            auto ptr5 = res.allocate (780, 1); // too large, even after degfragmentation
-            CHECK_FALSE (ptr5 == nullptr);
+            CHECK (res.allocate (780, 1) != nullptr); // too large, even after degfragmentation
             auto used = upstream.total_allocated();
             CHECK (used > 256); // served from upstream
 
-            CHECK (res.allocate (720, 1)); // can still use block found during defragmentation
+            CHECK (res.allocate (720, 1) != nullptr); // can still use block found during defragmentation
             CHECK (upstream.total_allocated() == used);
         }
     }
