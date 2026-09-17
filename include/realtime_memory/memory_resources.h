@@ -4,8 +4,6 @@
 #pragma once
 #include "pmr_includes.h"
 
-PMR_DIAGNOSTIC_PUSH
-
 //==============================================================================
 namespace cradle::pmr
 {
@@ -626,5 +624,3 @@ inline bool unsynchronized_pool_resource::is_oversized (std::size_t bytes, std::
 }
 
 } // namespace cradle::pmr
-
-PMR_DIAGNOSTIC_POP
