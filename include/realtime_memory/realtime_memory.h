@@ -4,7 +4,7 @@
 /** A fill-in implementation of C++17 <memory_resource>, to get
  *  monotonic_buffer_resource and unsynchronized_pool_resource.
  *
- *  Sadly these haven't made it to libc++ (clang) yet, though MSVC
+ *  These are not available in macOS libc++ pre macOS 14, though MSVC
  *  and newer GCCs have got implementations. This file is intended
  *  to be a drop-in replacement, and it is inspired by the MSVC
  *  and Bloomberg implementations (permissive licenses).

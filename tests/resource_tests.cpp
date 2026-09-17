@@ -11,8 +11,6 @@
 #include "realtime_memory/free_list_resource.h"
 #include "realtime_memory/containers.h"
 
-PMR_DIAGNOSTIC_PUSH
-
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -908,5 +906,3 @@ TEST_CASE ("unsynchronized_pool_resource overhead limits", "[memory_resource]")
             resource.deallocate (ptr, numBytes, alignment);
     }
 }
-
-PMR_DIAGNOSTIC_POP
