@@ -257,8 +257,8 @@ TEST_CASE ("unsynchronized_pool_resource", "[memory_resource]")
     {
         constexpr auto max_u64 = std::numeric_limits<std::size_t>::max();
         constexpr auto max_u32 = (std::size_t) std::numeric_limits<std::uint32_t>::max();
-        const auto maxBlocks = GENERATE (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
-        const auto largestBlock = GENERATE (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
+        const auto maxBlocks = GENERATE_COPY (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
+        const auto largestBlock = GENERATE_COPY (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
         CAPTURE (maxBlocks, largestBlock);
 
         pmr::pool_options options {maxBlocks, largestBlock};
