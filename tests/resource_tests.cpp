@@ -11,8 +11,6 @@
 #include "realtime_memory/free_list_resource.h"
 #include "realtime_memory/containers.h"
 
-PMR_DIAGNOSTIC_PUSH
-
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -259,8 +257,8 @@ TEST_CASE ("unsynchronized_pool_resource", "[memory_resource]")
     {
         constexpr auto max_u64 = std::numeric_limits<std::size_t>::max();
         constexpr auto max_u32 = (std::size_t) std::numeric_limits<std::uint32_t>::max();
-        const auto maxBlocks = GENERATE (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
-        const auto largestBlock = GENERATE (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
+        const auto maxBlocks = GENERATE_COPY (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
+        const auto largestBlock = GENERATE_COPY (as<size_t>(), 32ul, 1 << 15, max_u64 - 1);
         CAPTURE (maxBlocks, largestBlock);
 
         pmr::pool_options options {maxBlocks, largestBlock};
@@ -908,5 +906,3 @@ TEST_CASE ("unsynchronized_pool_resource overhead limits", "[memory_resource]")
             resource.deallocate (ptr, numBytes, alignment);
     }
 }
-
-PMR_DIAGNOSTIC_POP
